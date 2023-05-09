@@ -1,15 +1,10 @@
 # This Makefile contains useful targets that can be included in downstream projects.
 
-
-$(eval include .env)
-$(eval export sed 's/=.*//' .env)
-
-$(error "${pwd}")
-
 PROJECT:=$(shell echo ${project}| tr '[:lower:]' '[:upper:]')
 
-ifeq ($(call if,$(wildcard ${PROJECT}),),)
-${PROJECT}:
+$(info INFO: loading module: ${project})
+
+ifeq ($(filter .${project}.mk, $(notdir $(MAKEFILE_LIST))), .${project}.mk)
 
 .EXPORT_ALL_VARIABLES:
 MAKEFLAGS += --no-print-directory
@@ -17,13 +12,13 @@ MAKEFLAGS += --no-print-directory
 ${project}_project:=${project}
 
 ${project}_makefile_path:=$(shell realpath "$(shell dirname "$(lastword $(MAKEFILE_LIST))")")
-ifeq ($(submodules_path),)
-    ${project}_submodules_path:=$(shell realpath "${${project}_makefile_path}/..")
-else
-    ${project}_submodules_path:=$(shell realpath ${SUBMODULES_PATH})
-endif
+${project}_path:=${${project}_makefile_path}
 
-_submodules_path:=${${project}_submodules_path}
+ifeq ($(submodules_path),)
+    ${project}_submodules_path:=$(shell realpath "${${project}_path}")
+else
+    ${project}_submodules_path:=$(shell realpath ${submodules_path})
+endif
 
 make_gadgets_path:=${${project}_submodules_path}/make_gadgets
 ifeq ($(wildcard $(make_gadgets_path)/*),)
@@ -40,33 +35,23 @@ ${project}_image:=${${project}_project}:${${project}_tag}
 ${project}_CMAKE_BUILD_PATH:="${${project}_project}/build"
 ${project}_CMAKE_INSTALL_PATH:="${${project}_CMAKE_BUILD_PATH}/install"
 
-define project_RULE
-	$(eval TARGET_PREFIX := clean) 
-	$(eval TARGET := $@)
-    project := $(shell echo ${TARGET} | sed 's|${TARGET_PREFIX}_||g')
-endef
+include ${make_gadgets_path}/make_gadgets.mk
+include ${make_gadgets_path}/docker/docker-tools.mk
 
 .PHONY: build_${project} 
 build_${project}: ## Build ${project} 
-	@$(eval $(project_RULE))
 	cd "${${project}_makefile_path}" && make build
 
 .PHONY: clean_${project}
-clean_${project}: $(eval $(project_RULE))## Clean ${project} build artifacts
-	@$(eval $(project_RULE))
+clean_${project}: ## Clean ${project} build artifacts
 	cd "${${project}_makefile_path}" && make clean
 
 .PHONY: branch_${project}
 branch_${project}: ## Returns the current docker safe/sanitized branch for ${project} 
-	@$(eval $(project_RULE))
 	@printf "%s\n" ${${project}_tag}
 
 .PHONY: image_${project}
 image_${project}: ## Returns the current docker image name for ${project}
-	@$(eval $(project_RULE))
 	@printf "%s\n" ${${project}_image}
-
-include ${make_gadgets_path}/make_gadgets.mk
-include ${make_gadgets_path}/docker/docker-tools.mk
 
 endif
